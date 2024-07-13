@@ -1,12 +1,108 @@
 #!python3
-import random
+import numpy as np
 
 base = 10
 
-space = ' '
 
-def int2en(i: int) -> str:
+class Scale:
+    # https://en.wikipedia.org/wiki/Long_and_short_scales
+
+    grouping = 3
+
+    @classmethod
+    def vocabulary(cls):
+        return {100: 'hundred', 1000: 'thousand'}
+
+    # million, billion, etc.
+    prefixes = {
+        1: 'm',
+        2: 'b',
+        3: 'tr',
+        4: 'quadr',
+        5: 'quint',
+        6: 'sext',
+        7: 'sept',
+        8: 'oct',
+        9: 'non',
+        10: 'dec',
+        11: 'undec',
+        12: 'duodec',
+    }
+
+    @classmethod
+    def relevant_vocabulary(cls, x: int) -> dict:
+        ''' Which vocabulary items are no greater than the integer `x`?
+        '''
+        return {
+            factor: name for factor, name in cls.vocabulary().items()
+            if factor <= x
+        }
+
+class ShortScale(Scale):
+
+    @classmethod
+    def illion(cls, n: int) -> int:
+        ''' An `n`-illion is `10 ** (3 * n + 3)`.
+        '''
+        return cls.grouping * n + cls.grouping
+
+    @classmethod
+    def vocabulary(cls):
+        return super().vocabulary() | {
+            10 ** cls.illion(n): f'{prefix}illion'
+            for n, prefix in cls.prefixes.items()
+        }
+
+
+class LongScale(Scale):
+
+    @classmethod
+    def illion(cls, n: int) -> int:
+        ''' An `n`-illion is `10 ** (6 * n)`.
+        '''
+        return 2 * cls.grouping * n
+
+    @classmethod
+    def illiard(cls, n: int) -> int:
+        ''' An `n`-illiard is `10 ** (6 * n + 3)`,
+            i.e. a thousand `n`-illion.
+        '''
+        return 2 * cls.grouping * n + cls.grouping
+
+    @classmethod
+    def vocabulary(cls):
+        return super().vocabulary() | {
+            10 ** cls.illion(n): f'{prefix}illion'
+            for n, prefix in cls.prefixes.items()
+        } | {
+            10 ** cls.illiard(n): f'{prefix}illiard'
+            for n, prefix in cls.prefixes.items()
+        }
+
+
+def test_scales():
+
+    assert ShortScale.illion(1) == 6
+    assert ShortScale.illion(2) == 9
+    assert LongScale .illion(1) == 6
+    assert LongScale .illion(2) == 12
+
+    assert ShortScale.vocabulary()[10 **  6] ==  'million'
+    assert ShortScale.vocabulary()[10 **  9] ==  'billion'
+    assert ShortScale.vocabulary()[10 ** 12] == 'trillion'
+
+    assert {v: k for k, v in LongScale.vocabulary().items()}['milliard'] \
+        == {v: k for k, v in ShortScale.vocabulary().items()}['billion']
+
+
+def int2en(i: int, *, scale: type = ShortScale,
+           two_digit_linker: str = '-', thousands_separator: str =',',
+           do_warn: bool = False) -> str:
     ''' Return a written-English representation of the integer `i`.
+
+    `two_digit_linker`: For cardinals in the 20-100 range,
+        we may choose to write either e.g. "twenty one" or "twenty-one".
+        Therefore, a choice can be made between `' '` and `'-'`.
     '''
 
     if i < 0:
@@ -23,19 +119,27 @@ def int2en(i: int) -> str:
         return (lefts | teens)[r]
 
     # Numbers between twenty and one hundred
-    if q < base:  # i.e. digits(i, 2)
-        return twenty2onehundred(i)
+    # i.e. two-digit numbers >= 20
+    if q < base:
+        part1 = ties[q]
+        if not r: return part1
+        part2 = int2en(r)
+        return f'{part1}{two_digit_linker}{part2}'
 
-    # "Medium-sized" numbers: one hundred to one thousand
-    if digits(i, ShortScale.illion(0)):
-        return place_value(i, 2, 'hundred')
+    # Numbers greater than or equal to one hundred
 
-    # "Big" numbers: one thousand and above
-    for x, name in ({0: 'thousand'} | illions).items():
-        if digits(i, ShortScale.illion(x + 1)):
-            return place_value(i, ShortScale.illion(x), name)
-
-    raise ValueError(i)
+    # Use the greatest relevant vocabulary item first
+    power_of_ten, name = max(scale.relevant_vocabulary(i).items())
+    q, r = divmod(i, power_of_ten)
+    if do_warn and q >= power_of_ten:
+        # We shall then be saying things like "billion billion"
+        print(f'Overflow: {i} = {q} × {power_of_ten} + {r}')
+    part1 = f'{int2en(q)} {name}'
+    if not r: return part1
+    part2 = int2en(r)
+    return f'{part1}{thousands_separator} {part2}' \
+        if scale.relevant_vocabulary(r) \
+        else f'{part1} and {part2}'
 
 
 basic = {0: 'zero',
@@ -70,98 +174,14 @@ ties = {2: 'twenty',
         8: 'eighty',
         9: 'ninety'}
 
-def digits(i: int, n: int) -> int:
-    ''' Can the positive integer `i` be represented with at most `n` digits?
-    '''
-    return i < base ** n
 
-def how_many_digits(i: int) -> int:
-    ''' How many digits are needed to represent the positive integer `i`?
-    '''
-    n = 0
-    while i >= base ** n:
-        n += 1
-    return n
+def demo(n: int = 10):
 
-def twenty2onehundred(i: int) -> str:
-    ''' Handle integers in `range(20, 100)`.'''
-    assert i in range(2 * base, base ** 2)
-    q, r = divmod(i, base)
-    head = ties[q]
-    if not r: return head
-    tail = int2en(r)
-    return space.join((head, tail))
-
-def place_value(i: int, exponent: int, name: str) -> str:
-
-    q, r = divmod(i, base ** exponent)
-    head = space.join((int2en(q), name))
-    if not r: return head
-    tail = int2en(r)
-    return space.join((head, 'and', tail) if digits(r, 2) else (head, tail))
-
-class ShortScale:
-
-    grouping = 3
-
-    @classmethod
-    def illion(cls, n: int) -> int:
-        # https://en.wikipedia.org/wiki/Long_and_short_scales
-        return cls.grouping * n + cls.grouping
-
-class LongScale:
-
-    grouping = 3
-
-    @classmethod
-    def illion(cls, n: int) -> int:
-        return 2 * cls.grouping * n
-
-    @classmethod
-    def iard(cls, n: int) -> int:
-        return 2 * cls.grouping * n + cls.grouping
-
-
-assert ShortScale.illion(1) == 6
-assert ShortScale.illion(2) == 9
-assert LongScale .illion(1) == 6
-assert LongScale .illion(2) == 12
-
-illions = {
-    1: 'million',
-    2: 'billion',
-    3: 'trillion',
-    4: 'quadrillion',
-    5: 'quintillion',
-    6: 'sextillion',
-    7: 'septillion',
-    8: 'octillion',
-    9: 'nonillion',
-   10: 'decillion',
-   11: 'undecillion',
-   12: 'duodecillion'}
-
-
-def determine_limit() -> int:
-    lim = 1
-    try:
-        while True:
-            int2en(lim)
-            lim *= base
-    except ValueError as err:
-        assert err.args == (lim,)
-        return lim
+    xs = np.abs(np.random.randn(n) * 1E3).astype(int)
+    for x in xs:
+        print(f'{x:,}: {int2en(x)}', end='\n\n')
 
 
 if __name__ == '__main__':
 
-    lim = determine_limit()
-    hi = lim - 1
-    print(f'We can handle numbers no greater than {lim:.0E} '
-          f'(that is, numbers up to {hi:,}, or {int2en(hi)}).')
-
-    for _ in range(10):
-        i = random.randint(-lim, +lim)
-        print(f'{i:,}', int2en(i))
-        print()
-
+    demo()
