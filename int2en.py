@@ -34,8 +34,8 @@ class Scale:
         ''' Which vocabulary items are no greater than the integer `x`?
         '''
         return {
-            factor: name for factor, name in cls.vocabulary().items()
-            if factor <= x
+            power_of_ten: name for power_of_ten, name in cls.vocabulary().items()
+            if power_of_ten <= x
         }
 
 class ShortScale(Scale):
@@ -97,36 +97,40 @@ def test_scales():
 
 def int2en(i: int, *, scale: type = ShortScale,
            two_digit_linker: str = '-', thousands_separator: str =',',
-           do_warn: bool = False) -> str:
+           do_say_and: bool = True,
+           do_warn: bool = False,
+           negative_or_minus: str = 'negative') -> str:
     ''' Return a written-English representation of the integer `i`.
 
     `two_digit_linker`: For cardinals in the 20-100 range,
         we may choose to write either e.g. "twenty one" or "twenty-one".
         Therefore, a choice can be made between `' '` and `'-'`.
+
+    `do_say_and`: e.g. "one hundred and eighteen" vs "one hundred eighteen"
     '''
 
     if i < 0:
-        return f'negative {int2en(-i)}'
-
-    # "Basic" numbers: zero to ten
-    if i <= base:
-        return basic[i]
+        assert negative_or_minus in ('negative', 'minus')
+        return f'{negative_or_minus} {int2en(-i)}'
 
     q, r = divmod(i, base)
 
-    # Eleven, twelve, and the "teens"
-    if q == 1:
-        return (lefts | teens)[r]
+    # 0-9
+    if q == 0:
+        return basic[r]
 
-    # Numbers between twenty and one hundred
-    # i.e. two-digit numbers >= 20
+    # 10-19
+    if q == 1:
+        return (ten | lefts | teens)[r]
+
+    # 20-99
     if q < base:
         part1 = ties[q]
         if not r: return part1
         part2 = int2en(r)
         return f'{part1}{two_digit_linker}{part2}'
 
-    # Numbers greater than or equal to one hundred
+    # 100+
 
     # Use the greatest relevant vocabulary item first
     power_of_ten, name = max(scale.relevant_vocabulary(i).items())
@@ -139,7 +143,9 @@ def int2en(i: int, *, scale: type = ShortScale,
     part2 = int2en(r)
     return f'{part1}{thousands_separator} {part2}' \
         if scale.relevant_vocabulary(r) \
-        else f'{part1} and {part2}'
+        else f'{part1} and {part2}' \
+        if do_say_and \
+        else f'{part1} {part2}'
 
 
 basic = {0: 'zero',
@@ -151,8 +157,9 @@ basic = {0: 'zero',
          6: 'six',
          7: 'seven', 
          8: 'eight',
-         9: 'nine',
-        10: 'ten'}
+         9: 'nine'}
+
+ten = {0: 'ten'}
 
 lefts = {1: 'eleven',
          2: 'twelve'}
