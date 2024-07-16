@@ -107,6 +107,10 @@ def int2en(i: int, *, scale: type = ShortScale,
         Therefore, a choice can be made between `' '` and `'-'`.
 
     `do_say_and`: e.g. "one hundred and eighteen" vs "one hundred eighteen"
+
+    `thousands_separator`: e.g. "one thousand, five hundred" vs "one thousand five hundred"
+
+    `negative_or_minus`: e.g. "negative one" vs "minus one"
     '''
 
     if i < 0:
