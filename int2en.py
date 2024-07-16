@@ -97,8 +97,7 @@ def test_scales():
 
 def int2en(i: int, *, scale: type = ShortScale,
            two_digit_linker: str = '-', thousands_separator: str =',',
-           do_say_and: bool = True,
-           do_warn: bool = False,
+           do_say_and: bool = True, do_warn: bool = False,
            negative_or_minus: str = 'negative') -> str:
     ''' Return a written-English representation of the integer `i`.
 
@@ -113,9 +112,15 @@ def int2en(i: int, *, scale: type = ShortScale,
     `negative_or_minus`: e.g. "negative one" vs "minus one"
     '''
 
+    recurse = lambda i: int2en(i,
+                               scale=scale, two_digit_linker=two_digit_linker,
+                               thousands_separator=thousands_separator,
+                               do_say_and=do_say_and, do_warn=do_warn,
+                               negative_or_minus=negative_or_minus)
+
     if i < 0:
         assert negative_or_minus in ('negative', 'minus')
-        return f'{negative_or_minus} {int2en(-i)}'
+        return f'{negative_or_minus} {recurse(-i)}'
 
     q, r = divmod(i, base)
 
@@ -131,7 +136,7 @@ def int2en(i: int, *, scale: type = ShortScale,
     if q < base:
         part1 = ties[q]
         if not r: return part1
-        part2 = int2en(r)
+        part2 = recurse(r)
         return f'{part1}{two_digit_linker}{part2}'
 
     # 100+
@@ -142,9 +147,9 @@ def int2en(i: int, *, scale: type = ShortScale,
     if do_warn and q >= power_of_ten:
         # We shall then be saying things like "billion billion"
         print(f'Overflow: {i} = {q} × {power_of_ten} + {r}')
-    part1 = f'{int2en(q)} {name}'
+    part1 = f'{recurse(q)} {name}'
     if not r: return part1
-    part2 = int2en(r)
+    part2 = recurse(r)
     return f'{part1}{thousands_separator} {part2}' \
         if scale.relevant_vocabulary(r) \
         else f'{part1} and {part2}' \
