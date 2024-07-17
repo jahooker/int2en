@@ -3,6 +3,10 @@ import numpy as np
 
 base = 10
 
+NumType = int
+
+Cardinal, Ordinal = 0, 1
+
 
 class Scale:
     # https://en.wikipedia.org/wiki/Long_and_short_scales
@@ -98,7 +102,8 @@ def test_scales():
 def int2en(i: int, *, scale: type = ShortScale,
            two_digit_linker: str = '-', thousands_separator: str =',',
            do_say_and: bool = True, do_warn: bool = False,
-           negative_or_minus: str = 'negative') -> str:
+           negative_or_minus: str = 'negative',
+           cardinal_or_ordinal: NumType = Cardinal) -> str:
     ''' Return a written-English representation of the integer `i`.
 
     `two_digit_linker`: For cardinals in the 20-100 range,
@@ -110,13 +115,16 @@ def int2en(i: int, *, scale: type = ShortScale,
     `thousands_separator`: e.g. "one thousand, five hundred" vs "one thousand five hundred"
 
     `negative_or_minus`: e.g. "negative one" vs "minus one"
+
+    `cardinal_or_ordinal`: e.g. "one" vs "first"
     '''
 
     recurse = lambda i: int2en(i,
                                scale=scale, two_digit_linker=two_digit_linker,
                                thousands_separator=thousands_separator,
                                do_say_and=do_say_and, do_warn=do_warn,
-                               negative_or_minus=negative_or_minus)
+                               negative_or_minus=negative_or_minus,
+                               cardinal_or_ordinal=cardinal_or_ordinal)
 
     if i < 0:
         assert negative_or_minus in ('negative', 'minus')
@@ -126,15 +134,15 @@ def int2en(i: int, *, scale: type = ShortScale,
 
     # 0-9
     if q == 0:
-        return basic[r]
+        return _0_to_9[r][cardinal_or_ordinal]
 
     # 10-19
     if q == 1:
-        return (ten | lefts | teens)[r]
+        return _10_to_19[r][cardinal_or_ordinal]
 
     # 20-99
     if q < base:
-        part1 = ties[q]
+        part1 = tens[q]
         if not r: return part1
         part2 = recurse(r)
         return f'{part1}{two_digit_linker}{part2}'
@@ -157,45 +165,94 @@ def int2en(i: int, *, scale: type = ShortScale,
         else f'{part1} {part2}'
 
 
-basic = {0: 'zero',
-         1: 'one',
-         2: 'two',
-         3: 'three',
-         4: 'four',
-         5: 'five',
-         6: 'six',
-         7: 'seven', 
-         8: 'eight',
-         9: 'nine'}
+class th:
 
-ten = {0: 'ten'}
+    def __str__(self) -> str:
+        return 'th'
 
-lefts = {1: 'eleven',
-         2: 'twelve'}
+    def __radd__(self, other) -> str:
 
-teens = {3: 'thirteen',
-         4: 'fourteen',
-         5: 'fifteen',
-         6: 'sixteen',
-         7: 'seventeen',
-         8: 'eighteen', 
-         9: 'nineteen'}
+        match other:
+            case str(_): pass
+            case _: raise TypeError(other)
 
-ties = {2: 'twenty',
-        3: 'thirty',
-        4: 'forty',
-        5: 'fifty',
-        6: 'sixty',
-        7: 'seventy',
-        8: 'eighty',
-        9: 'ninety'}
+        if other.endswith('ve'):
+            # 'five' -> 'fifth'
+            # # 'twelve' -> 'twelfth'
+            other = f'{other.removesuffix('ve')}f'
+        if other.endswith('ne'):
+            # 'nine' -> 'ninth'
+            other = f'{other.removesuffix('ne')}n'
+        if other.endswith('ght'):
+            # 'eight' -> 'eighth'
+            other = f'{other.removesuffix('t')}'
+
+        return other + str(self)
+
+class teen:
+
+    def __str__(self) -> str:
+        return 'teen'
+
+    def __radd__(self, other) -> str:
+
+        match other:
+            case str(_): pass
+            case _: raise TypeError(other)
+
+        if other.endswith('ve'):
+            # 'five' -> 'fifteen'
+            other = f'{other.removesuffix('ve')}f'
+        if other.endswith('ght'):
+            # 'eight' -> 'eighteen'
+            other = f'{other.removesuffix('t')}'
+
+        return other + str(self)
+
+
+_0_to_9 = {
+    0: {Cardinal: 'zero',  Ordinal: 'zero'  + th()},
+    1: {Cardinal: 'one',   Ordinal: 'first'       },
+    2: {Cardinal: 'two',   Ordinal: 'second'      },
+    3: {Cardinal: 'three', Ordinal: 'third'       },
+    4: {Cardinal: 'four',  Ordinal: 'four'  + th()},
+    5: {Cardinal: 'five',  Ordinal: 'five'  + th()},
+    6: {Cardinal: 'six',   Ordinal: 'six'   + th()},
+    7: {Cardinal: 'seven', Ordinal: 'seven' + th()},
+    8: {Cardinal: 'eight', Ordinal: 'eight' + th()},
+    9: {Cardinal: 'nine',  Ordinal: 'nine'  + th()},
+}
+
+_10_to_19 = {
+    i: {
+        Cardinal: root + teen(),
+        Ordinal:  root + teen() + th(),
+    } for i, root in ({i: item[Cardinal] for i, item in _0_to_9.items()} | {3: 'thir'}).items()
+} | {
+    0: {Cardinal: 'ten',    Ordinal: 'ten'    + th()},
+    1: {Cardinal: 'eleven', Ordinal: 'eleven' + th()},
+    2: {Cardinal: 'twelve', Ordinal: 'twelve' + th()},
+}
+
+tens = {
+    1: _10_to_19[0][Cardinal],
+} | {i: f'{prefix}ty' for i, prefix in {
+    2: 'twen',
+    3: 'thir',
+    4: 'for',
+    5: 'fif',
+    6: 'six',
+    7: 'seven',
+    8: 'eigh',
+    9: 'nine'
+}.items()}
 
 
 def demo(n: int = 10):
 
     xs = np.abs(np.random.randn(n) * 1E3).astype(int)
     for x in xs:
-        print(f'{x:,}: {int2en(x)}', end='\n\n')
+        print(f'{x:,}: {int2en(x, cardinal_or_ordinal=Ordinal)}', end='\n\n')
 
 
 if __name__ == '__main__':
