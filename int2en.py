@@ -210,6 +210,27 @@ class teen:
         return other + str(self)
 
 
+class ty:
+
+    def __str__(self) -> str:
+        return 'ty'
+
+    def __radd__(self, other) -> str:
+
+        match other:
+            case str(_): pass
+            case _: raise TypeError(other)
+
+        if other.endswith('ve'):
+            # 'five' -> 'fifty'
+            other = f'{other.removesuffix('ve')}f'
+        if other.endswith('ght'):
+            # 'eight' -> 'eighty'
+            other = f'{other.removesuffix('t')}'
+
+        return other + str(self)
+
+
 _0_to_9 = {
     0: {Cardinal: 'zero',  Ordinal: 'zero'  + th()},
     1: {Cardinal: 'one',   Ordinal: 'first'       },
@@ -235,17 +256,16 @@ _10_to_19 = {
 }
 
 tens = {
-    1: _10_to_19[0][Cardinal],
-} | {i: f'{prefix}ty' for i, prefix in {
-    2: 'twen',
-    3: 'thir',
-    4: 'for',
-    5: 'fif',
-    6: 'six',
-    7: 'seven',
-    8: 'eigh',
-    9: 'nine'
-}.items()}
+    1: _10_to_19[0][Cardinal],  # Not 'onety'
+} | {
+    i: root + ty() for i, root in ({
+        i: root[Cardinal] for i, root in _0_to_9.items()
+    } | {
+        2: 'twen',  # Not 'twoty'
+        3: 'thir',  # Not 'threety'
+        4: 'for',   # Not 'fourty'
+    }
+).items()}
 
 
 def demo(n: int = 10):
