@@ -119,12 +119,13 @@ def int2en(i: int, *, scale: type = ShortScale,
     `cardinal_or_ordinal`: e.g. "one" vs "first"
     '''
 
-    recurse = lambda i: int2en(i,
-                               scale=scale, two_digit_linker=two_digit_linker,
-                               thousands_separator=thousands_separator,
-                               do_say_and=do_say_and, do_warn=do_warn,
-                               negative_or_minus=negative_or_minus,
-                               cardinal_or_ordinal=cardinal_or_ordinal)
+    recurse = lambda i, co=cardinal_or_ordinal: int2en(
+        i,
+        scale=scale, two_digit_linker=two_digit_linker,
+        thousands_separator=thousands_separator,
+        do_say_and=do_say_and, do_warn=do_warn,
+        negative_or_minus=negative_or_minus,
+        cardinal_or_ordinal=co)
 
     if i < 0:
         assert negative_or_minus in ('negative', 'minus')
@@ -143,8 +144,9 @@ def int2en(i: int, *, scale: type = ShortScale,
     # 20-99
     if q < base:
         part1 = tens[q]
-        if not r: return part1
-        part2 = recurse(r)
+        if not r:
+            return part1 + th() if cardinal_or_ordinal == Ordinal else part1
+        part2 = recurse(r, co=cardinal_or_ordinal)
         return f'{part1}{two_digit_linker}{part2}'
 
     # 100+
@@ -155,9 +157,10 @@ def int2en(i: int, *, scale: type = ShortScale,
     if do_warn and q >= power_of_ten:
         # We shall then be saying things like "billion billion"
         print(f'Overflow: {i} = {q} × {power_of_ten} + {r}')
-    part1 = f'{recurse(q)} {name}'
-    if not r: return part1
-    part2 = recurse(r)
+    part1 = f'{recurse(q, co=Cardinal)} {name}'
+    if not r:
+        return part1 + th() if cardinal_or_ordinal == Ordinal else part1
+    part2 = recurse(r, co=cardinal_or_ordinal)
     return f'{part1}{thousands_separator} {part2}' \
         if scale.relevant_vocabulary(r) \
         else f'{part1} and {part2}' \
@@ -165,70 +168,78 @@ def int2en(i: int, *, scale: type = ShortScale,
         else f'{part1} {part2}'
 
 
-class th:
+class Suffix:
+
+    def __str__(self) -> str:
+        raise NotImplementedError()
+
+    def __radd__(self, root) -> str:
+        return f'{root}{self}'
+
+
+class th(Suffix):
+    ''' The ordinal suffix 'th'.
+    '''
 
     def __str__(self) -> str:
         return 'th'
 
-    def __radd__(self, other) -> str:
+    def __radd__(th, root) -> str:
 
-        match other:
-            case str(_): pass
-            case _: raise TypeError(other)
-
-        if other.endswith('ve'):
+        if root.endswith('ve'):
             # 'five' -> 'fifth'
-            # # 'twelve' -> 'twelfth'
-            other = f'{other.removesuffix('ve')}f'
-        if other.endswith('ne'):
+            # 'twelve' -> 'twelfth'
+            return f'{root.removesuffix('ve')}f{th}'
+
+        if root.endswith('ne'):
             # 'nine' -> 'ninth'
-            other = f'{other.removesuffix('ne')}n'
-        if other.endswith('ght'):
+            return f'{root.removesuffix('e')}{th}'
+
+        if root.endswith('ght'):
             # 'eight' -> 'eighth'
-            other = f'{other.removesuffix('t')}'
+            return f'{root.removesuffix('t')}{th}'
 
-        return other + str(self)
+        if root.endswith('y'):
+            # 'sixty' -> 'sixtieth'
+            return f'{root.removesuffix('y')}ie{th}'
 
-class teen:
+        return super().__radd__(root)
+
+
+class teen(Suffix):
 
     def __str__(self) -> str:
         return 'teen'
 
-    def __radd__(self, other) -> str:
+    def __radd__(teen, root) -> str:
 
-        match other:
-            case str(_): pass
-            case _: raise TypeError(other)
-
-        if other.endswith('ve'):
+        if root.endswith('ve'):
             # 'five' -> 'fifteen'
-            other = f'{other.removesuffix('ve')}f'
-        if other.endswith('ght'):
+            return f'{root.removesuffix('ve')}f{teen}'
+
+        if root.endswith('ght'):
             # 'eight' -> 'eighteen'
-            other = f'{other.removesuffix('t')}'
+            return f'{root.removesuffix('t')}{teen}'
 
-        return other + str(self)
+        return super().__radd__(root)
 
 
-class ty:
+class ty(Suffix):
 
     def __str__(self) -> str:
         return 'ty'
 
-    def __radd__(self, other) -> str:
+    def __radd__(ty, root) -> str:
 
-        match other:
-            case str(_): pass
-            case _: raise TypeError(other)
-
-        if other.endswith('ve'):
+        if root.endswith('ve'):
             # 'five' -> 'fifty'
-            other = f'{other.removesuffix('ve')}f'
-        if other.endswith('ght'):
-            # 'eight' -> 'eighty'
-            other = f'{other.removesuffix('t')}'
+            return f'{root.removesuffix('ve')}f{ty}'
 
-        return other + str(self)
+        if root.endswith('ght'):
+            # 'eight' -> 'eighty'
+            return f'{root.removesuffix('t')}{ty}'
+
+        return super().__radd__(root)
 
 
 _0_to_9 = {
@@ -245,27 +256,37 @@ _0_to_9 = {
 }
 
 _10_to_19 = {
+    # The 'teens'
     i: {
         Cardinal: root + teen(),
         Ordinal:  root + teen() + th(),
-    } for i, root in ({i: item[Cardinal] for i, item in _0_to_9.items()} | {3: 'thir'}).items()
+    } for i, root in ({
+        i: item[Cardinal] for i, item in _0_to_9.items()
+    } | {
+        3: 'thir',  # Not 'threeteen'
+    }).items()
 } | {
-    0: {Cardinal: 'ten',    Ordinal: 'ten'    + th()},
-    1: {Cardinal: 'eleven', Ordinal: 'eleven' + th()},
-    2: {Cardinal: 'twelve', Ordinal: 'twelve' + th()},
+    i: {
+        Cardinal: root,
+        Ordinal:  root + th(),
+    } for i, root in {
+        0: 'ten',
+        1: 'eleven',
+        2: 'twelve',
+    }.items()
 }
 
 tens = {
-    1: _10_to_19[0][Cardinal],  # Not 'onety'
-} | {
     i: root + ty() for i, root in ({
-        i: root[Cardinal] for i, root in _0_to_9.items()
+        i: root[Cardinal] for i, root in _0_to_9.items() if i > 0
     } | {
         2: 'twen',  # Not 'twoty'
         3: 'thir',  # Not 'threety'
         4: 'for',   # Not 'fourty'
     }
-).items()}
+).items()} | {
+    1: _10_to_19[0][Cardinal],  # Not 'onety'
+}
 
 
 def demo(n: int = 10):
