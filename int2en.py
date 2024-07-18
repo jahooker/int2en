@@ -177,6 +177,13 @@ class Suffix:
         return f'{root}{self}'
 
 
+class st(Suffix):
+    ''' The ordinal suffix 'st', which occurs only in 'first'.
+    '''
+
+    def __str__(self) -> str:
+        return 'st'
+
 class th(Suffix):
     ''' The ordinal suffix 'th'.
     '''
@@ -243,10 +250,12 @@ class ty(Suffix):
 
 
 _0_to_9 = {
+    # TODO Offer choice of 'zero' vs 'nought'
+    # TODO Offer choice of 'zeroth' vs 'zeroeth'
     0: {Cardinal: 'zero',  Ordinal: 'zero'  + th()},
-    1: {Cardinal: 'one',   Ordinal: 'first'       },
-    2: {Cardinal: 'two',   Ordinal: 'second'      },
-    3: {Cardinal: 'three', Ordinal: 'third'       },
+    1: {Cardinal: 'one',   Ordinal: 'fir'   + st()},  # Not 'oneth'
+    2: {Cardinal: 'two',   Ordinal: 'second'      },  # Not 'twoth'
+    3: {Cardinal: 'three', Ordinal: 'third'       },  # Not 'threeth'
     4: {Cardinal: 'four',  Ordinal: 'four'  + th()},
     5: {Cardinal: 'five',  Ordinal: 'five'  + th()},
     6: {Cardinal: 'six',   Ordinal: 'six'   + th()},
@@ -256,29 +265,26 @@ _0_to_9 = {
 }
 
 _10_to_19 = {
-    # The 'teens'
     i: {
-        Cardinal: root + teen(),
-        Ordinal:  root + teen() + th(),
-    } for i, root in ({
-        i: item[Cardinal] for i, item in _0_to_9.items()
+        Cardinal: card,
+        Ordinal:  card + th(),
+    } for i, card in ({
+        # The 'teens'
+        i: root + teen() for i, root in ({
+            i: item[Cardinal] for i, item in _0_to_9.items()
+        } | {
+            3: 'thir',  # Not 'threeteen'
+        }).items()
     } | {
-        3: 'thir',  # Not 'threeteen'
+        0: 'ten',     # Not 'zeroteen'
+        1: 'eleven',  # Not 'oneteen'
+        2: 'twelve',  # Not 'twoteen'
     }).items()
-} | {
-    i: {
-        Cardinal: root,
-        Ordinal:  root + th(),
-    } for i, root in {
-        0: 'ten',
-        1: 'eleven',
-        2: 'twelve',
-    }.items()
 }
 
 tens = {
     i: root + ty() for i, root in ({
-        i: root[Cardinal] for i, root in _0_to_9.items() if i > 0
+        i: item[Cardinal] for i, item in _0_to_9.items() if i > 0
     } | {
         2: 'twen',  # Not 'twoty'
         3: 'thir',  # Not 'threety'
