@@ -100,17 +100,50 @@ def test_scales():
         == {v: k for k, v in ShortScale.vocabulary().items()}['billion']
 
 
+
+def bipartite1(q: int, r: int, *,
+               cardinal_or_ordinal: NumType = Cardinal,
+               two_digit_linker: str = '-') -> int:
+    ''' 21 -> 'twenty one' / 'twenty-one'
+
+    `two_digit_linker`: For cardinals in the 20-100 range,
+        we may choose to write either e.g. "twenty one" or "twenty-one".
+        Therefore, a choice can be made between `' '` and `'-'`.
+
+    '''
+    part1 = tens[q]
+    if not r:
+        return part1 + th() if cardinal_or_ordinal == Ordinal else part1
+    part2 = int2en(r)
+    return f'{part1}{two_digit_linker}{part2}'
+
+
+def bipartite2(q: int, r: int, *,
+               cardinal_or_ordinal: NumType = Cardinal) -> str:
+    ''' 21 -> 'one and twenty'
+    '''
+    tens_part = tens[q]
+    if not r:
+        return tens_part + th() if cardinal_or_ordinal == Ordinal else tens_part
+    ones_part = int2en(r)
+    return f'{ones_part} and {tens_part}'
+
+
+def digitwise(i: int):
+    return ' '.join(_0_to_9[int(digit)] for digit in str(i))
+
+
 def int2en(i: int, *,
            scale: type = ShortScale,
-           two_digit_linker: str = '-', thousands_separator: str =',',
+           two_part_strategy=bipartite1,
+           thousands_separator: str =',',
            do_say_and: bool = True, do_warn: bool = False,
            negative_or_minus: str = 'negative',
            cardinal_or_ordinal: NumType = Cardinal) -> str:
     ''' Return a written-English representation of the integer `i`.
 
-    `two_digit_linker`: For cardinals in the 20-100 range,
-        we may choose to write either e.g. "twenty one" or "twenty-one".
-        Therefore, a choice can be made between `' '` and `'-'`.
+    `two_part_strategy`: A handler for expressing integers
+        in terms of a 'tens' component and a 'ones' component.
 
     `do_say_and`: e.g. "one hundred and eighteen" vs "one hundred eighteen"
 
@@ -123,7 +156,8 @@ def int2en(i: int, *,
 
     recurse = lambda i, co=cardinal_or_ordinal: int2en(
         i,
-        scale=scale, two_digit_linker=two_digit_linker,
+        scale=scale,
+        two_part_strategy=two_part_strategy,
         thousands_separator=thousands_separator,
         do_say_and=do_say_and, do_warn=do_warn,
         negative_or_minus=negative_or_minus,
@@ -145,11 +179,7 @@ def int2en(i: int, *,
 
     # 20-99
     if q in tens:
-        part1 = tens[q]
-        if not r:
-            return part1 + th() if cardinal_or_ordinal == Ordinal else part1
-        part2 = recurse(r, co=cardinal_or_ordinal)
-        return f'{part1}{two_digit_linker}{part2}'
+        return two_part_strategy(q, r, cardinal_or_ordinal=cardinal_or_ordinal)
 
     # 100+
 
@@ -302,7 +332,7 @@ def demo(n: int = 10):
 
     xs = np.abs(np.random.randn(n) * 1E3).astype(int)
     for x in xs:
-        print(f'{x:,}: {int2en(x, cardinal_or_ordinal=Ordinal)}', end='\n\n')
+        print(f'{x:,}: {int2en(x, cardinal_or_ordinal=Cardinal, two_part_strategy=bipartite1)}', end='\n\n')
 
 
 if __name__ == '__main__':
