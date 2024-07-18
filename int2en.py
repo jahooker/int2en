@@ -42,6 +42,7 @@ class Scale:
             if power_of_ten <= x
         }
 
+
 class ShortScale(Scale):
 
     @classmethod
@@ -99,7 +100,8 @@ def test_scales():
         == {v: k for k, v in ShortScale.vocabulary().items()}['billion']
 
 
-def int2en(i: int, *, scale: type = ShortScale,
+def int2en(i: int, *,
+           scale: type = ShortScale,
            two_digit_linker: str = '-', thousands_separator: str =',',
            do_say_and: bool = True, do_warn: bool = False,
            negative_or_minus: str = 'negative',
@@ -142,7 +144,7 @@ def int2en(i: int, *, scale: type = ShortScale,
         return _10_to_19[r][cardinal_or_ordinal]
 
     # 20-99
-    if q < base:
+    if q in tens:
         part1 = tens[q]
         if not r:
             return part1 + th() if cardinal_or_ordinal == Ordinal else part1
@@ -292,6 +294,7 @@ tens = {
     }
 ).items()} | {
     1: _10_to_19[0][Cardinal],  # Not 'onety'
+    # 11: _10_to_19[1][Cardinal] + ty(),
 }
 
 
